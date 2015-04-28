@@ -30,6 +30,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 import com.google.common.base.Predicate;
+
+import io.netty.util.ResourceLeakDetector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
@@ -97,6 +99,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     static {
         SecurityHack.ensureInitialized();
+        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.valueOf(System.getProperty("tests.netty.threadleaklevel", "disabled").toUpperCase(Locale.ROOT)));
     }
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
