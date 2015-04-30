@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 
 import com.google.common.collect.Iterables;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ClusterState.Builder;
@@ -129,23 +128,23 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't set initial block when started");
+            throw new IllegalStateException("can't set initial block when started");
         }
         initialBlocks.addGlobalBlock(block);
     }
 
     @Override
-    public void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't set initial block when started");
+            throw new IllegalStateException("can't set initial block when started");
         }
         initialBlocks.removeGlobalBlock(block);
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, UPDATE_THREAD_NAME));
@@ -160,7 +159,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         FutureUtils.cancel(this.reconnectToNodes);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
@@ -171,7 +170,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override
@@ -402,7 +401,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 Discovery.AckListener ackListener = new NoOpAckListener();
                 if (newClusterState.nodes().localNodeMaster()) {
                     // only the master controls the version numbers
-                    Builder builder = ClusterState.builder(newClusterState).version(newClusterState.version() + 1);
+                    Builder builder = ClusterState.builder(newClusterState).incrementVersion();
                     if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                         builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1));
                     }
@@ -467,7 +466,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // we don't want to notify
                 if (newClusterState.nodes().localNodeMaster()) {
                     logger.debug("publishing cluster state version {}", newClusterState.version());
-                    discoveryService.publish(newClusterState, ackListener);
+                    discoveryService.publish(clusterChangedEvent, ackListener);
                 }
 
                 // update the current cluster state
@@ -512,9 +511,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newClusterState);
                 }
 
-                logger.debug("processing [{}]: done applying updated cluster_state (version: {})", source, newClusterState.version());
+                logger.debug("processing [{}]: done applying updated cluster_state (version: {}, uuid: {})", source, newClusterState.version(), newClusterState.uuid());
             } catch (Throwable t) {
-                StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
+                StringBuilder sb = new StringBuilder("failed to apply updated cluster state:\nversion [").append(newClusterState.version()).append("], uuid [").append(newClusterState.uuid()).append("], source [").append(source).append("]\n");
                 sb.append(newClusterState.nodes().prettyPrint());
                 sb.append(newClusterState.routingTable().prettyPrint());
                 sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());

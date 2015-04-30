@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
@@ -278,7 +277,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
                 )
                 .execute().actionGet();
             fail("should have thrown an exception about the replica shard count");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("message contains error about shard count: " + e.getMessage(),
                 e.getMessage().contains("the value of the setting index.number_of_replicas must be a non negative integer"), equalTo(true));
         }

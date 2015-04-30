@@ -587,6 +587,44 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
     }
 
+    @Test // https://github.com/elasticsearch/elasticsearch/issues/10477
+    public void testDateRangeInQueryStringWithTimeZone_10477() {
+        //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
+        //as with dynamic mappings some shards might be lacking behind and parse a different query
+        assertAcked(prepareCreate("test").addMapping(
+                "type", "past", "type=date"
+        ));
+        ensureGreen();
+
+        client().prepareIndex("test", "type", "1").setSource("past", "2015-04-05T23:00:00+0000").get();
+        client().prepareIndex("test", "type", "2").setSource("past", "2015-04-06T00:00:00+0000").get();
+        refresh();
+
+        // Timezone set with dates
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00+0200 TO 2015-04-06T23:00:00+0200]"))
+                .get();
+        assertHitCount(searchResponse, 2l);
+
+        // Same timezone set with time_zone
+        searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00 TO 2015-04-06T23:00:00]").timeZone("+0200"))
+                .get();
+        assertHitCount(searchResponse, 2l);
+
+        // We set a timezone which will give no result
+        searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]"))
+                .get();
+        assertHitCount(searchResponse, 0l);
+
+        // Same timezone set with time_zone but another timezone is set directly within dates which has the precedence
+        searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]").timeZone("+0200"))
+                .get();
+        assertHitCount(searchResponse, 0l);
+    }
+
     @Test
     public void typeFilterTypeIndexedTests() throws Exception {
         typeFilterTests("not_analyzed");
@@ -1460,7 +1498,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2926
-    public void testMustNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 //issue manifested only with shards>=2
                 .setSettings(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)));
@@ -1483,7 +1521,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2994
-    public void testSimpleSpan() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testSimpleSpan() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -1505,7 +1543,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSpanMultiTermQuery() throws ElasticsearchException, IOException {
+    public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
         ensureGreen();
 
@@ -1538,7 +1576,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSpanNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testSpanNot() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -1577,7 +1615,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSimpleDFSQuery() throws ElasticsearchException, IOException {
+    public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
             .addMapping("s", jsonBuilder()
                 .startObject()
